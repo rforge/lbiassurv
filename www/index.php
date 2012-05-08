@@ -43,7 +43,12 @@ echo $contents; } ?>
 
 <!-- end of project description -->
 
-<p> No content added. </p>
+<p>The current developers are <a href="http://vahid.probstat.ca/"><strong>Vahid Partovi Nia</strong></a> and 
+<a href="http://mysite.science.uottawa.ca/pbergero/"><strong>Pierre-Jerome Bergeron</strong></a>. </p>
+
+<div style="text-align: center"> 
+<img src="lbias.jpg" />
+</div>
 
 <p> The <strong>project summary page</strong> you can find <a href="http://<?php echo $domain; ?>/projects/<?php echo $group_name; ?>/"><strong>here</strong></a>. </p>
 
