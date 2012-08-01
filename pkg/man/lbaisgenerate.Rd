@@ -28,7 +28,7 @@ Pierre-Jerome and Vahid.
 Add notes here about possible mistakes, misuse, etc.
 }
 \seealso{
-\code{\link{vardifit}}
+\code{\link{nonpar.fit}}
 }
 \examples{
 ## Generates gamma length-biased data
