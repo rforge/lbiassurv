@@ -1,5 +1,5 @@
-".First.lib" <-function(lib, pkg)
+".onLoad" <-function(lib, pkg)
 {
-    library.dynam("lbiassurv", package = pkg, lib.loc = lib)
-    return(invisible(0)) 
+  library.dynam("lbiassurv", package = pkg, lib.loc = lib)
+  return(invisible(0)) 
 }
