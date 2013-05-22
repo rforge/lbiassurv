@@ -41,7 +41,7 @@ Write why and when you get NaNs.
 }
 \examples{
 mydata=lbsample(500,family="exponential",par=list(rate=1))
-lbfit.par(time=mydata$data,censor=mydata$censor,family="exponential",initial=list(shape=3,rate=3))
+lbfit.par(time=mydata$time,censor=mydata$censor,family="exponential",initial=list(shape=3,rate=3))
 }
 \keyword{length biased sampling}
 \keyword{survival curve estimation}

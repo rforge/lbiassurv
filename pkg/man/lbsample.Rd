@@ -10,7 +10,7 @@ lbsample(n, family, par = list(shape, rate, meanlog, sdlog), censor.vec = rexp(n
 \arguments{
   \item{n}{
 The sample size.}
-  \item{family}{ Some families
+  \item{family}{ Some families.
 }
   \item{par}{Parameters of the family.
 }
@@ -34,6 +34,6 @@ Add some notes about constraints on the parameters.
 \code{\link{lbfit.nonpar}}, \code{\link{lbfit.par}}.}
 \examples{
 mydata=lbsample(500,family="exponential",par=list(rate=1))
-hist(mydata$data)
+hist(mydata$time)
 }
 \keyword{Length bias sampling}

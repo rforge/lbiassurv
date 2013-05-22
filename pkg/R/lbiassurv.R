@@ -1,71 +1,142 @@
 
-lbfit.nonpar<-function(time,censor,initial=list(maxiter=500,tol=1e-6)) {
-  maxiter=initial$maxiter
-  tol=initial$tol
+lbfit.nonpar<-function(time,censor,boot=FALSE,
+                       boot.control=list(quantile=TRUE,use.median=FALSE,confidence.level=0.95,iter=1000),
+                       fit.control=list(iter=500,tol=1e-6)) 
+{
+
+  maxiter=fit.control$iter
+  tol=fit.control$tol
   
-  # check time is a numeric vector
+  # check time is a numeric vector 
   # check censor is a vector of zero and ones
   # check censor has the same size as of time
-  # check maxiter is an integer vector of length one 
-  # check tol is a double of length one
-  tt<-time
-  d <- censor
+  # check controls
   
-  #Removes zeros from a vector
-  remzero<-function(x) {x[x!=0]}
-  
-  #Function to split time and failure indicators into two seperate vectors of
-  #uncensored times and censored times, the way Vardi wrote his algorithm
-  svcounts<-function(x) {
-    .C("countsorted",PACKAGE="lbiassurv",as.double(x),as.integer(length(x)),y=double(length(unique(x))))$y
+  # This fitting function will be used inside bootstrap function
+  fitnonpar<-function(time,censor) 
+    {
+    tt<-time
+    d <- censor    
+    #Removes zeros from a vector
+    remzero<-function(x) {x[x!=0]}
+    
+    #Function to split time and failure indicators into two seperate vectors of
+    #uncensored times and censored times, the way Vardi wrote his algorithm
+    svcounts<-function(x) {
+      .C("countsorted",PACKAGE="lbiassurv",as.double(x),as.integer(length(x)),y=double(length(unique(x))))$y
+    }
+    
+    splitxy<-function(tt,delta) {
+      x<-tt[delta==1]
+      y<-tt[delta==0]
+      list(x=x,y=y) 
+    }
+    
+    # The algorithm starts from here
+    ot<-order(tt)
+    xy<-splitxy(tt[ot],d[ot])
+    tj<-unique(tt[ot])
+    h<-length(tj)
+    m<-length(xy$x)
+    n<-length(xy$y)
+    iter=0
+    if (n==0) {
+      if (h==m) 
+        vout<-list(pvec=rep(1/h,h),iter=iter)
+      else
+        vout<-list(pvec=svcounts(xy$x)/m,iter=iter)
+    }
+    else if (h==(m+n)) {
+      vout<-.C("vardir",PACKAGE="lbiassurv",as.double(xy$x),as.double(xy$y),as.integer(m),as.integer(n),
+               as.double(tj),as.integer(h),as.integer(maxiter), as.double(tol),
+               pvec=double(h),iter=integer(1),as.double(xy$x),
+               as.integer(m),as.double(xy$y),as.integer(n))
+    }
+    else { 
+      xu<-unique(xy$x)
+      yu<-unique(xy$y)
+      vout<-.C("vardir",PACKAGE="lbiassurv",as.double(xy$x),as.double(xy$y),as.integer(m),as.integer(n),
+               as.double(tj),as.integer(h),as.integer(maxiter), as.double(tol),
+               pvec=double(h),iter=integer(1),as.double(xu),
+               as.integer(length(xu)),as.double(yu),as.integer(length(yu)))
+    }
+    #  ret<-list(t=tj,lbpvec=vout$pvec,
+    #            ubpvec=(vout$pvec/tj)/sum(vout$pvec/tj),
+    #            t.break=c(0,tj),surv.break=c(1,1-cumsum((vout$pvec/tj)/sum(vout$pvec/tj))),
+    #            iterations=vout$iter, conv=(iter<maxiter), method="nonpar")
+#    par=cbind(tj,(vout$pvec/tj)/sum(vout$pvec/tj))
+    par=cbind(tj,1-cumsum((vout$pvec/tj)/sum(vout$pvec/tj)))
+    colnames(par)=c("time","surv")
+    ret<-list(par=par,
+              survfun=stepfun(tj,c(1,1-cumsum((vout$pvec/tj)/sum(vout$pvec/tj)))),
+              iterations=vout$iter, conv=(iter<maxiter), method="nonpar")  
+    class(ret)="lbsurvfit"
+    return(ret)
   }
   
-  splitxy<-function(tt,delta) {
-    x<-tt[delta==1]
-    y<-tt[delta==0]
-    list(x=x,y=y) 
+  bootnonpar=function(time,censor) 
+    {
+    B=boot.control$iter
+    type=7
+    conf.level=boot.control$confidence.level
+    usemed=boot.control$use.median
+    nonpar=boot.control$quantile
+    
+    a=(1-conf.level)/2
+    n=length(time)
+             survmat=matrix(0,nrow=B,ncol=n)
+             origvardi=fitnonpar(time,censor)
+             for (i in 1:B) {
+               b1=sample(n,n,replace=TRUE)
+               bootdata=time[b1]
+               bootcens=censor[b1]
+               ox1=order(bootdata)
+               bootdata=bootdata[ox1]
+               bootcens=bootcens[ox1]
+               vardi=fitnonpar(bootdata,bootcens)
+               fu1=vardi$survfun
+               survmat[i,]=fu1(time)
+             }
+             if (nonpar) {
+               lower=apply(survmat,2,quantile,probs=a,type=type)
+               upper=apply(survmat,2,quantile,probs=1-a,type=type)
+             }
+             else {
+               sdsx=apply(survmat,2,sd)
+               if (!usemed) {
+                 lower=pmax(0,origvardi$survfun(time)+qnorm(a)*sdsx)
+                 upper=pmin(1,origvardi$survfun(time)+qnorm(1-a)*sdsx)
+               }
+               else {
+                 medvardi=apply(survmat,2,median)
+                 lower=pmax(0,medvardi+qnorm(a)*sdsx)
+                 upper=pmin(1,medvardi+qnorm(1-a)*sdsx)
+               }
+             }
+    ret=origvardi
+    ot=order(time)
+    ret$par=cbind(ret$par,lower[ot],upper[ot])
+#    colnames(par)=c("time","surv","lower","upper")    
+    ret$lowerfun=stepfun(time[ot],c(1,lower[ot]))
+    ret$upperfun=stepfun(time[ot],c(1,upper[ot]))
+    return(ret)
   }
-  
-  # The algorithm starts from here
-  ot<-order(tt)
-  xy<-splitxy(tt[ot],d[ot])
-  tj<-unique(tt[ot])
-  h<-length(tj)
-  m<-length(xy$x)
-  n<-length(xy$y)
-  iter=0
-  if (n==0) {
-    if (h==m) 
-      vout<-list(pvec=rep(1/h,h),iter=iter)
-    else
-      vout<-list(pvec=svcounts(xy$x)/m,iter=iter)
+
+if (!is.logical(boot)) stop("The boot option in bootstrap must be logical")  
+
+  if (!(boot)) 
+  {
+  warning("The boot option is FALSE, no confidence bounds are produced")
+  return(fitnonpar(time,censor))
   }
-  else if (h==(m+n)) {
-    vout<-.C("vardir",PACKAGE="lbiassurv",as.double(xy$x),as.double(xy$y),as.integer(m),as.integer(n),
-             as.double(tj),as.integer(h),as.integer(maxiter), as.double(tol),
-             pvec=double(h),iter=integer(1),as.double(xy$x),
-             as.integer(m),as.double(xy$y),as.integer(n))
+
+if (boot) 
+  {
+  cat("bootstrapping...")
+  return(bootnonpar(time,censor))   
   }
-  else { 
-    xu<-unique(xy$x)
-    yu<-unique(xy$y)
-    vout<-.C("vardir",PACKAGE="lbiassurv",as.double(xy$x),as.double(xy$y),as.integer(m),as.integer(n),
-             as.double(tj),as.integer(h),as.integer(maxiter), as.double(tol),
-             pvec=double(h),iter=integer(1),as.double(xu),
-             as.integer(length(xu)),as.double(yu),as.integer(length(yu)))
-  }
-  #  ret<-list(t=tj,lbpvec=vout$pvec,
-  #            ubpvec=(vout$pvec/tj)/sum(vout$pvec/tj),
-  #            t.break=c(0,tj),surv.break=c(1,1-cumsum((vout$pvec/tj)/sum(vout$pvec/tj))),
-  #            iterations=vout$iter, conv=(iter<maxiter), method="nonpar")
-  par=cbind(tj,(vout$pvec/tj)/sum(vout$pvec/tj),NA)
-  colnames(par)=c("t","survdiff","sd.err")
-  ret<-list(par=par,
-            survfun=stepfun(tj,c(1,1-cumsum((vout$pvec/tj)/sum(vout$pvec/tj)))),
-            iterations=vout$iter, conv=(iter<maxiter), method="nonpar")  
-  class(ret)="lbsurvfit"
-  return(ret)
 }
+
 
 
 lbsample <- function(n, family, par=list(shape,rate,meanlog,sdlog),censor.vec=rexp(n))
@@ -95,7 +166,7 @@ lbsample <- function(n, family, par=list(shape,rate,meanlog,sdlog),censor.vec=re
     
     #  data.frame(data=times[ot],censor=deathind[ot],onset=trunctimes[ot],study=deathind[ot]*restimes[ot]+(1-deathind[ot])*censts[ot],death=restimes[ot],censor=censts[ot])  
     # some objects are removed to be coherent with other functions
-    return(list(data=times[ot],censor=deathind[ot],onset=trunctimes[ot]))  
+    return(list(time=times[ot],censor=deathind[ot],onset=trunctimes[ot]))  
   }
   
   
@@ -109,7 +180,7 @@ lbsample <- function(n, family, par=list(shape,rate,meanlog,sdlog),censor.vec=re
     residtimevec=lbtimevec-lbtruncvec
     obstimevec=lbtruncvec+pmin(residtimevec,censts)
     deltavec=1*(residtimevec<censts)
-    return(list(data=obstimevec,censor=deltavec,onset=lbtruncvec))
+    return(list(time=obstimevec,censor=deltavec,onset=lbtruncvec))
   }
     
   lbsample.lognormal<-function(size,meanlog=0,sdlog=1,censts)
@@ -119,7 +190,7 @@ lbsample <- function(n, family, par=list(shape,rate,meanlog,sdlog),censor.vec=re
     residtimevec=lbtimevec-lbtruncvec
     obstimevec=lbtruncvec+pmin(residtimevec,censts)
     deltavec=1*(residtimevec<censts)
-    return(list(data=obstimevec,censor=deltavec,onset=lbtruncvec))
+    return(list(time=obstimevec,censor=deltavec,onset=lbtruncvec))
   }
   
   lbsample.loglogistic<-function(size,shape,rate,censts)
@@ -132,7 +203,7 @@ lbsample <- function(n, family, par=list(shape,rate,meanlog,sdlog),censor.vec=re
     residtimevec=lbtimevec-lbtruncvec
     obstimevec=lbtruncvec+pmin(residtimevec,censts)
     deltavec=1*(residtimevec<censts)
-    return(list(data=obstimevec,censor=deltavec,onset=lbtruncvec))
+    return(list(time=obstimevec,censor=deltavec,onset=lbtruncvec))
   }
   
 
