@@ -1,10 +1,10 @@
 \name{lbfit.nonpar}
 \alias{lbfit.nonpar}
 \title{
-Fits a Vardi corrected survival curve, a nonparametric survival cuve estimation.
+Fits length bias corrected survival curve, using nonparametric method estimation.
 }
 \description{
-An extended version of the Kaplan-Miere estimator.
+This function implements length-bias correction to the nonparametricestimator.
 }
 \usage{
 lbfit.nonpar(time, censor, boot = FALSE, 
@@ -18,30 +18,51 @@ fit.control = list(iter = 500, tol = 1e-06))
 The observed time as a vector. 
 }
   \item{censor}{
-The survival indicator, 1 if censored, 0 otherwise.
+The survival indicator, 0 if censored, 1 for event.
 }
   \item{boot}{
-logical, for calculating bootstrap confidence bounds.
+logical, for calculating bootstrap confidence bounds. By default is \code{FALSE}.
 }
 
   \item{boot.control}{
-Bootstrap control parameters, as a list.
+Bootstrap control parameters, as a list. See 'Details'.
 }
 
   \item{fit.control}{
-Nonparametric fit control parameters.
+Nonparametric fit control parameters, as a list. See 'Details'.
 }
 }
 
 \details{
-A detailed description, or refer the reader to a work.
+If \code{boot=TRUE}, the survival function is reported with two additional functions, one for lower bound, and another for the upper bound. While \code{boot=FALSE}, no standard error and no confidence bounds are produced. The \code{boot.control} items and \code{fit.control} items can be changed, if is necessary. The \code{quantile} gives the quantile-based confidence bounds, and by default is \code{TRUE}. If \code{quantile=FALSE} a normal confidence bound is produced. The \code{use.median} replaces the mean with median as the center of the confidence bounds, when \code{quantile=FALSE}. The \code{confidence.level} is the level of confidence for one bootstrap interval. The \code{iter} is the number of iterations for computing the bootstrap confidence bounds. The \code{tol} is the convergence tolerance.
 }
 \value{
-The result of the function is an \code{lbsurvfit} object, including step functions for the nonparametric survival curve fit and its bootstrap confidence bounds.}
+\item{par}{A matrix, indicates survival estimate for each observed  time parameter. 
+ }
+\item{survfun}{
+The survival function as a step function. 
+}
+\item{iterations}{
+  An integer value giving the number of calls.
+}
+\item{conv}{
+A logical value, it is \code{TRUE} if the function converges, and if not, the value is \code{FALSE}.
+}
+\item{method}{Equals \code{nonpar}. This value will be used in constructing a proper survival function plot.
+}
+\item{lowerfun}{
+A step function for the lower bound of confidence interval for the nonparametric estimator.
+}
+\item{upperfun}{A step function for the upper bound of confidence interval for the nonparametric estimator.
+}
+\item{attr}{
+The class of the object.
+}
+}
 \references{
-Vardi Paper}
+Vardi, Y. (1989). Multiplicative censoring, renewal processes, deconvolution and decreasing density: Nonparametric estimation.  \emph{Biometrika}, \bold{76} (4), 751--761.}
 \author{
-V. P. Nia and P. J. Bergeron}
+Pierre-Jerome Bergeron and Vahid Partovi Nia.}
 \note{
 Bootstrapping is required if confidence bounds are needed.
 }

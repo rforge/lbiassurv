@@ -1,10 +1,10 @@
 Package: lbiassurv
-Version: 1.1
-Date: 2013-05-23
+Version: 1.3
+Date: 2013-09-02
 Title: Length-biased correction to survival curve estimation.
 Author: Pierre-Jerome Bergeron and Vahid Partovi Nia 
 Maintainer: Vahid Partovi Nia <vahid.partovinia@polymtl.ca>
-Depends: R (>= 2.15.0), actuar
+Depends: R (>= 3.0.1), actuar
 Description: The package offers various length-bias corrections to survival curve estimation.
 License: GPL (>= 2)
 URL: http://lbiassurv.r-forge.r-project.org/

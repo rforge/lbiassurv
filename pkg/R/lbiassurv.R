@@ -139,88 +139,93 @@ if (boot)
 
 
 
-lbsample <- function(n, family, par=list(shape,rate,meanlog,sdlog),censor.vec=rexp(n))
+lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog), 
+                      censor.vec = rexp(n)) 
 {
-  shape=par$shape
-  rate=par$rate
-  meanlog=par$meanlog
-  sdlog=par$sdlog
-  censts=censor.vec
-  size=n
-  
-  
-  
-  lbsample.weibull<-function(size,shape,rate,censts ) {
-    g<-function (s, lambda, p) {
+  shape = par$shape
+  rate = par$rate
+  meanlog = par$meanlog
+  sdlog = par$sdlog
+  censts = censor.vec
+  size = n
+  lbsample.weibull <- function(size, shape, rate, censts) {
+    g <- function(s, lambda, p) {
       (s^(1/p))/lambda
     }
-    
-    #length-biased time to death
-    ftimes<-g(rgamma(n,shape=1+1/shape),rate,shape)
-    trunctimes<-runif(n,max=ftimes)
-    restimes<-ftimes-trunctimes
-    #if censoring time is equal to death time, the observation is censored
-    deathind<-1*(restimes<=censts)
-    times<-trunctimes+deathind*restimes+(1-deathind)*censts
-    ot<-order(times)
-    
-    #  data.frame(data=times[ot],censor=deathind[ot],onset=trunctimes[ot],study=deathind[ot]*restimes[ot]+(1-deathind[ot])*censts[ot],death=restimes[ot],censor=censts[ot])  
-    # some objects are removed to be coherent with other functions
-    return(list(time=times[ot],censor=deathind[ot],onset=trunctimes[ot]))  
+    ftimes <- g(rgamma(n, shape = 1 + 1/shape), rate, shape)
+    trunctimes <- runif(n, max = ftimes)
+    restimes <- ftimes - trunctimes
+    deathind <- 1 * (restimes <= censts)
+    times <- trunctimes + deathind * restimes + (1 - deathind) * 
+      censts
+    ot <- order(times)
+    return(list(time = times[ot], censor = deathind[ot], 
+                onset = trunctimes[ot]))
   }
   
+  lbs.rllogis<-function(n,shape=1,rate=1,censor.vec=rexp(n)) {
+    return(lbsample(n,family="loglogistic",par=list(shape=shape,rate=rate),censor.vec))
+  } 
   
-  
-  lbsample.gamma<-function(size,shape,rate,censts)
-  {  
-    n<-size
-    #might as well do this now: censoring time  
-    lbtimevec=rgamma(size,shape=shape+1,rate=rate)
-    lbtruncvec=runif(size,max=lbtimevec)
-    residtimevec=lbtimevec-lbtruncvec
-    obstimevec=lbtruncvec+pmin(residtimevec,censts)
-    deltavec=1*(residtimevec<censts)
-    return(list(time=obstimevec,censor=deltavec,onset=lbtruncvec))
+  lbsample.gamma <- function(size, shape, rate, censts) {
+    n <- size
+    lbtimevec = rgamma(size, shape = shape + 1, rate = rate)
+    lbtruncvec = runif(size, max = lbtimevec)
+    residtimevec = lbtimevec - lbtruncvec
+    obstimevec = lbtruncvec + pmin(residtimevec, censts)
+    deltavec = 1 * (residtimevec < censts)
+    return(list(time = obstimevec, censor = deltavec, onset = lbtruncvec))
   }
-    
-  lbsample.lognormal<-function(size,meanlog=0,sdlog=1,censts)
-  {
-    lbtimevec=exp(rnorm(size,meanlog+sdlog^2,sdlog))
-    lbtruncvec=runif(size,max=lbtimevec)
-    residtimevec=lbtimevec-lbtruncvec
-    obstimevec=lbtruncvec+pmin(residtimevec,censts)
-    deltavec=1*(residtimevec<censts)
-    return(list(time=obstimevec,censor=deltavec,onset=lbtruncvec))
+  lbsample.lognormal <- function(size, meanlog = 0, sdlog = 1, 
+                                 censts) {
+    lbtimevec = exp(rnorm(size, meanlog + sdlog^2, sdlog))
+    lbtruncvec = runif(size, max = lbtimevec)
+    residtimevec = lbtimevec - lbtruncvec
+    obstimevec = lbtruncvec + pmin(residtimevec, censts)
+    deltavec = 1 * (residtimevec < censts)
+    return(list(time = obstimevec, censor = deltavec, onset = lbtruncvec))
   }
-  
-  lbsample.loglogistic<-function(size,shape,rate,censts)
-  { 
-    alpha<-shape
-    theta<-(rate)^shape
-    z=rbeta(size,1-1/alpha,1+1/alpha)
-    lbtimevec=((1-z)/(theta*z))^(1/alpha)
-    lbtruncvec=runif(size,max=lbtimevec)
-    residtimevec=lbtimevec-lbtruncvec
-    obstimevec=lbtruncvec+pmin(residtimevec,censts)
-    deltavec=1*(residtimevec<censts)
-    return(list(time=obstimevec,censor=deltavec,onset=lbtruncvec))
+  lbsample.loglogistic <- function(size, shape, rate, censts) {
+    alpha <- shape
+    theta <- (rate)^shape
+    if (shape>1) {
+      z = rbeta(size, 1 - 1/alpha, 1 + 1/alpha) 
+      lbtimevec = ((1 - z)/(theta * z))^(1/alpha)
+    }
+    else {
+      warning("Approximately length-biased sample, slow algorithm")
+      z <- rllogis(1000*size,shape=shape,rate=rate)
+      lbtimevec<-sample(z,size,replace=TRUE,prob=z/sum(z))
+    }
+    lbtruncvec = runif(size, max = lbtimevec)
+    residtimevec = lbtimevec - lbtruncvec
+    obstimevec = lbtruncvec + pmin(residtimevec, censts)
+    deltavec = 1 * (residtimevec < censts)
+    return(list(time = obstimevec, censor = deltavec, onset = lbtruncvec))
   }
-  
-
-  #initial is a list of initial parameters
-  if(family=="weibull"){return(lbsample.weibull(size,shape,rate,censts))}
-  if(family=="gamma"){return(
-    lbsample.gamma(size,shape,rate,censts))}
-  
-  if(family=="exponential"){return(
-    lbsample.gamma(size,shape=1,rate,censts))}
-  
-  if(family=="lognormal"){return(
-    lbsample.lognormal(size,meanlog,sdlog,censts))}
-  if (family=="loglogistic"){return(
-    lbsample.loglogistic(size,shape,rate,censts))}  
+  if (family == "weibull") {
+    return(lbsample.weibull(size, shape, rate, censts))
+  }
+  if (family == "gamma") {
+    return(lbsample.gamma(size, shape, rate, censts))
+  }
+  if (family == "exponential") {
+    return(lbsample.gamma(size, shape = 1, rate, censts))
+  }
+  if (family == "lognormal") {
+    return(lbsample.lognormal(size, meanlog, sdlog, censts))
+  }
+  if (family == "loglogistic") {
+    return(lbsample.loglogistic(size, shape, rate, censts))
+  }
 }
 
+
+# last update from PJ email 10.03.2014
+
+
+  
+  
 
 lbfit.par <- function(time, censor, family, initial=list(shape,rate,meanlog,sdlog))
 {
