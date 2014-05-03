@@ -34,8 +34,8 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
     if (kmb) {
       censkm<-fastkm(forw,1-censor)
       for (i in 1:bootk) {
-        bootforw<-sample(trunc,n,rep=TRUE)
-        bootcens<-sample(censkm$etimes,n,rep=TRUE,prob=censkm$pv)
+        bootforw<-sample(trunc,n,replace=TRUE)
+        bootcens<-sample(censkm$etimes,n,replace=TRUE,prob=censkm$pv)
         bootf<-pmin(bootforw,bootcens)
         bootdel<-1*(bootforw<=bootcens)
         bootkm<-fastkm(bootf,bootdel)
@@ -44,8 +44,8 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
     }
     else {
       for (i in 1:bootk) {
-        bootforw<-sample(trunc,n,rep=TRUE)
-        bootcens<-sample(censt,n,rep=TRUE)
+        bootforw<-sample(trunc,n,replace=TRUE)
+        bootcens<-sample(censt,n,replace=TRUE)
         bootf<-pmin(bootforw,bootcens)
         bootdel<-1*(bootforw<=bootcens)
         bootkm<-fastkm(bootf,bootdel)
@@ -78,18 +78,18 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
   
   weiwnc<-function(truck,forw,cens,offset=0,bootvar=FALSE,bootk=1000) {
     n<-length(truck)
-    ret<-.C("weiwnr",as.double(truck),as.double(forw),as.double(cens),as.integer(n),as.double(offset),wn=as.double(1),s0sq=as.double(1))
+    ret<-.C("weiwnr",PACKAGE="lbiassurv",as.double(truck),as.double(forw),as.double(cens),as.integer(n),as.double(offset),wn=as.double(1),s0sq=as.double(1))
     wn<-ret$wn
     s0sq<-ret$s0sq
     if (bootvar) {
       wnboot<-rep(0,bootk) 
       for (i in 1:bootk) {
-        swfoo<-sample(0:1,n,replace=T)
-        indres<-sample(n,n,replace=T)
+        swfoo<-sample(0:1,n,replace=TRUE)
+        indres<-sample(n,n,replace=TRUE)
         trunc1<-swfoo*(truck[indres])+(1-swfoo)*(forw[indres])
         forw1<-swfoo*(forw[indres])+(1-swfoo)*(truck[indres])
         cens1<-cens[indres]
-        bootret<-.C("justweiwnr",as.double(trunc1),as.double(forw1),as.double(cens1),as.integer(n),as.double(offset),wn=as.double(1))
+        bootret<-.C("justweiwnr",PACKAGE="lbiassurv",as.double(trunc1),as.double(forw1),as.double(cens1),as.integer(n),as.double(offset),wn=as.double(1))
         wnboot[i]<-bootret$wn
       }
       ret<-list(weistat=sqrt(n)*wn,s0sq=s0sq,boots0sq=n*var(wnboot),bootw0=sqrt(n)*wnboot)
@@ -112,7 +112,7 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
       tt<-unique(ts*ds)
       tt<-tt[tt!=0]
       nu<-length(tt)
-      ret<-.C("kaplanmeierr",as.double(ts),as.integer(ds),as.integer(n),
+      ret<-.C("kaplanmeierr",PACKAGE="lbiassurv",as.double(ts),as.integer(ds),as.integer(n),
               as.double(tt),as.integer(nu),di=integer(nu),ni=integer(nu),St=double(nu))
       return(list(etimes=tt,deaths=ret$di,riskset=ret$ni,st=ret$St,pv=-diff(c(1,ret$St)),survfunc=stepfun(tt,c(1,ret$St))))
       #list(st=ret$St,pv=-diff(c(1,ret$St)))
@@ -131,7 +131,7 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
       tt<-unique(tes*ds)
       tt<-tt[tt!=0]
       nu<-length(tt)
-      ret<-.C("trunckaplanmeierr",as.double(sort(ti)),as.double(tes),as.integer(ds),as.integer(n),
+      ret<-.C("trunckaplanmeierr",PACKAGE="lbiassurv",as.double(sort(ti)),as.double(tes),as.integer(ds),as.integer(n),
               as.double(tt),as.integer(nu),di=integer(nu),ni=integer(nu),St=double(nu))
       return(list(etimes=tt,deaths=ret$di,riskset=ret$ni,st=ret$St,pv=-diff(c(1,ret$St)),survfunc=stepfun(tt,c(1,ret$St))))
       #list(st=ret$St,pv=-diff(c(1,ret$St)))
