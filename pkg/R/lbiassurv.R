@@ -34,8 +34,8 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
     if (kmb) {
       censkm<-fastkm(forw,1-censor)
       for (i in 1:bootk) {
-        bootforw<-sample(trunc,n,replace=TRUE)
-        bootcens<-sample(censkm$etimes,n,replace=TRUE,prob=censkm$pv)
+        bootforw<-sample(trunc,n,rep=TRUE)
+        bootcens<-sample(censkm$etimes,n,rep=TRUE,prob=censkm$pv)
         bootf<-pmin(bootforw,bootcens)
         bootdel<-1*(bootforw<=bootcens)
         bootkm<-fastkm(bootf,bootdel)
@@ -44,8 +44,8 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
     }
     else {
       for (i in 1:bootk) {
-        bootforw<-sample(trunc,n,replace=TRUE)
-        bootcens<-sample(censt,n,replace=TRUE)
+        bootforw<-sample(trunc,n,rep=TRUE)
+        bootcens<-sample(censt,n,rep=TRUE)
         bootf<-pmin(bootforw,bootcens)
         bootdel<-1*(bootforw<=bootcens)
         bootkm<-fastkm(bootf,bootdel)
@@ -78,7 +78,7 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
   
   weiwnc<-function(truck,forw,cens,offset=0,bootvar=FALSE,bootk=1000) {
     n<-length(truck)
-    ret<-.C("weiwnr",PACKAGE="lbiassurv",as.double(truck),as.double(forw),as.double(cens),as.integer(n),as.double(offset),wn=as.double(1),s0sq=as.double(1))
+    ret<-.C("weiwnr",as.double(truck),as.double(forw),as.double(cens),as.integer(n),as.double(offset),wn=as.double(1),s0sq=as.double(1))
     wn<-ret$wn
     s0sq<-ret$s0sq
     if (bootvar) {
@@ -89,7 +89,7 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
         trunc1<-swfoo*(truck[indres])+(1-swfoo)*(forw[indres])
         forw1<-swfoo*(forw[indres])+(1-swfoo)*(truck[indres])
         cens1<-cens[indres]
-        bootret<-.C("justweiwnr",PACKAGE="lbiassurv",as.double(trunc1),as.double(forw1),as.double(cens1),as.integer(n),as.double(offset),wn=as.double(1))
+        bootret<-.C("justweiwnr",as.double(trunc1),as.double(forw1),as.double(cens1),as.integer(n),as.double(offset),wn=as.double(1))
         wnboot[i]<-bootret$wn
       }
       ret<-list(weistat=sqrt(n)*wn,s0sq=s0sq,boots0sq=n*var(wnboot),bootw0=sqrt(n)*wnboot)
@@ -112,7 +112,7 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
       tt<-unique(ts*ds)
       tt<-tt[tt!=0]
       nu<-length(tt)
-      ret<-.C("kaplanmeierr",PACKAGE="lbiassurv",as.double(ts),as.integer(ds),as.integer(n),
+      ret<-.C("kaplanmeierr",as.double(ts),as.integer(ds),as.integer(n),
               as.double(tt),as.integer(nu),di=integer(nu),ni=integer(nu),St=double(nu))
       return(list(etimes=tt,deaths=ret$di,riskset=ret$ni,st=ret$St,pv=-diff(c(1,ret$St)),survfunc=stepfun(tt,c(1,ret$St))))
       #list(st=ret$St,pv=-diff(c(1,ret$St)))
@@ -131,7 +131,7 @@ lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE,
       tt<-unique(tes*ds)
       tt<-tt[tt!=0]
       nu<-length(tt)
-      ret<-.C("trunckaplanmeierr",PACKAGE="lbiassurv",as.double(sort(ti)),as.double(tes),as.integer(ds),as.integer(n),
+      ret<-.C("trunckaplanmeierr",as.double(sort(ti)),as.double(tes),as.integer(ds),as.integer(n),
               as.double(tt),as.integer(nu),di=integer(nu),ni=integer(nu),St=double(nu))
       return(list(etimes=tt,deaths=ret$di,riskset=ret$ni,st=ret$St,pv=-diff(c(1,ret$St)),survfunc=stepfun(tt,c(1,ret$St))))
       #list(st=ret$St,pv=-diff(c(1,ret$St)))
@@ -351,7 +351,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
     times <- trunctimes + deathind * restimes + (1 - deathind) * 
       censts
     ot <- order(times)
-    return(list(time = times[ot], censor = deathind[ot], 
+    return(data.frame(time = times[ot], censor = deathind[ot], 
                 entry = trunctimes[ot]))
   }
   
@@ -366,7 +366,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
     residtimevec = lbtimevec - lbtruncvec
     obstimevec = lbtruncvec + pmin(residtimevec, censts)
     deltavec = 1 * (residtimevec < censts)
-    return(list(time = obstimevec, censor = deltavec, entry = lbtruncvec))
+    return(data.frame(time = obstimevec, censor = deltavec, entry = lbtruncvec))
   }
   lbsample.lognormal <- function(size, meanlog = 0, sdlog = 1, 
                                  censts) {
@@ -375,7 +375,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
     residtimevec = lbtimevec - lbtruncvec
     obstimevec = lbtruncvec + pmin(residtimevec, censts)
     deltavec = 1 * (residtimevec < censts)
-    return(list(time = obstimevec, censor = deltavec, entry = lbtruncvec))
+    return(data.frame(time = obstimevec, censor = deltavec, entry = lbtruncvec))
   }
   lbsample.loglogistic <- function(size, shape, rate, censts) {
     alpha <- shape
@@ -446,8 +446,11 @@ lbfit.par <- function(time, censor, family, initial=list(shape,rate,meanlog,sdlo
       return(y) 
     }
     ret=optim(guess,loglik.lbweib,hessian=TRUE,method="BFGS")
+    hes<-ret$hessian
+    rownames(hes)<-c("shape","rate")
+    colnames(hes)<-c("shape","rate")
     sdal=sqrt(diag(solve(ret$hessian)))
-    retweib=list(shape.fit=exp(ret$par[1]),rate.fit=exp(ret$par[2]),shape.sd=exp(ret$par[1])*sdal[1],rate.sd=exp(ret$par[2])*sdal[2],loglike.maximum=-ret$value,hessian=ret$hessian, code=ret$convergence,iterations=ret$counts)
+    retweib=list(shape.fit=as.numeric(exp(ret$par[1])),rate.fit=as.numeric(exp(ret$par[2])),shape.sd=as.numeric(exp(ret$par[1])*sdal[1]),rate.sd=as.numeric(exp(ret$par[2])*sdal[2]),loglike.maximum=-ret$value,hessian=hes, code=ret$convergence,iterations=ret$counts)
     return(retweib)
   }
   
@@ -467,8 +470,12 @@ lbfit.par <- function(time, censor, family, initial=list(shape,rate,meanlog,sdlo
     }
     #ret=nlm(loglik.lbgamma,guess,hessian=TRUE,...,survdata=survdata)
     ret=optim(guess,loglik.lbgamma,hessian=TRUE,method="BFGS")
+
     sdal=sqrt(diag(solve(ret$hessian)))
-    retgamma=list(shape.fit=exp(ret$par[1]),scale.fit=exp(ret$par[2]),shape.sd=exp(ret$par[1])*sdal[1],scale.sd=exp(ret$par[2])*sdal[2],loglike.maximum=-ret$value,hessian=ret$hessian, code=ret$convergence,
+    hes<-ret$hessian
+    rownames(hes)<-c("shape","scale")
+    colnames(hes)<-c("shape","scale")
+    retgamma=list(shape.fit=as.numeric(exp(ret$par[1])),scale.fit=as.numeric(exp(ret$par[2])),shape.sd=as.numeric(exp(ret$par[1])*sdal[1]),scale.sd=as.numeric(exp(ret$par[2])*sdal[2]),loglike.maximum=-ret$value,hessian=hes, code=ret$convergence,
                   iterations=ret$counts,model="gamma")
     return(retgamma)
   }
@@ -490,8 +497,11 @@ lbfit.par <- function(time, censor, family, initial=list(shape,rate,meanlog,sdlo
     }
     #ret=nlm(loglik.lbexp,guess,hessian=TRUE,...,survdata=survdata)
     ret=optim(guess,loglik.lbexp,hessian=TRUE,method="BFGS")
+    hes<-ret$hessian
+    rownames(hes)<-c("rate")
+    colnames(hes)<-c("rate")
     sdal=sqrt(diag(solve(ret$hessian)))
-    retexp=list(rate.fit=exp(ret$par[1]),rate.sd=exp(ret$par[1])*sdal[1],loglike.maximum=-ret$value,hessian=ret$hessian, code=ret$convergence,
+    retexp=list(rate.fit=as.numeric(exp(ret$par[1])),rate.sd=as.numeric(exp(ret$par[1])*sdal[1]),loglike.maximum=-ret$value,hessian=hes, code=ret$convergence,
                 iterations=ret$counts,model="exponential")
     return(retexp)
   }
@@ -511,8 +521,11 @@ lbfit.par <- function(time, censor, family, initial=list(shape,rate,meanlog,sdlo
     }
     #ret=nlm(loglik.lblnorm,guess,hessian=TRUE,...,survdata=survdata)
     ret=optim(guess,loglik.lblnorm,hessian=TRUE,method="BFGS")
+    hes<-ret$hessian
+    rownames(hes)<-c("meanlog","sdlog")
+    colnames(hes)<-c("meanlog","sdlog")
     sdal=sqrt(diag(solve(ret$hessian)))
-    retlnorm=list(meanlog.fit=ret$par[1],sdlog.fit=exp(ret$par[2]),meanlog.sd=sdal[1],sdlog.sd=exp(ret$par[2])*sdal[2],loglike.maximum=-ret$value,hessian=ret$hessian, code=ret$convergence,
+    retlnorm=list(meanlog.fit=as.numeric(ret$par[1]),sdlog.fit=as.numeric(exp(ret$par[2])),meanlog.sd=as.numeric(sdal[1]),sdlog.sd=as.numeric(exp(ret$par[2])*sdal[2]),loglike.maximum=-ret$value,hessian=hes, code=ret$convergence,
                   iterations=ret$counts,model="lognormal")
     return(retlnorm)
   }
@@ -534,8 +547,11 @@ lbfit.par <- function(time, censor, family, initial=list(shape,rate,meanlog,sdlo
     }
     #ret=nlm(loglik.lbllogis,guess,hessian=TRUE,...,survdata=survdata)
     ret=optim(guess,loglik.lbllogis,hessian=TRUE,method="BFGS")
+    hes<-ret$hessian
+    rownames(hes)<-c("shape","scale")
+    colnames(hes)<-c("shape","scale")
     sdal=sqrt(diag(solve(ret$hessian)))
-    retllogis=list(shape.fit=exp(ret$par[1]),scale.fit=exp(ret$par[2]),shape.sd=exp(ret$par[1])*sdal[1],scale.sd=exp(ret$par[2])*sdal[2],loglike.maximum=-ret$value,hessian=ret$hessian, code=ret$convergence,
+    retllogis=list(shape.fit=as.numeric(exp(ret$par[1])),scale.fit=as.numeric(exp(ret$par[2])),shape.sd=as.numeric(exp(ret$par[1])*sdal[1]),scale.sd=as.numeric(exp(ret$par[2])*sdal[2]),loglike.maximum=-ret$value,hessian=ret$hessian, code=ret$convergence,
                    iterations=ret$counts,model="loglogistic")
     return(retllogis)
   }
