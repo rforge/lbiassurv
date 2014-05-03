@@ -1,3 +1,195 @@
+lbtest<-function(time, censor, entry, offset=0, bootstrap=TRUE, plot=TRUE, 
+                 alternative="two.sided",
+                 boot.control=list(confidence.level = 0.95, iter = 1000),
+                 plot.control=list())
+{
+  
+  
+  ### First part
+  
+  awz.test<-function(trunc,forw,censor,plotop=list(lwd=rep(1,2),lty=1:2,col=rep("black",2))) {
+    backtime<-fastkm(trunc,rep(1,length(trunc)))
+    forwtime<-fastkm(forw,censor)
+    plot(c(forwtime$etimes,max(forw)),forwtime$survfunc(c(forwtime$etimes,max(forw))),type="s",ylim=c(0,1),xlim=c(0,max(forw)),main="AWZ test for stationarity",xlab="Time",ylab="Survival",lwd=plotop$lwd[1],lty=plotop$lty[1],col=plotop$col[1])
+    censt<-forw*(1-censor)
+    censt<-censt[censt!=0]
+    points(censt,forwtime$survfunc(censt),pch="+",col=plotop$col[1])
+    lines(backtime$etimes,backtime$survfunc(backtime$etimes),type="s",lty=plotop$lty[2],col=plotop$col[2],lwd=plotop$lwd[2])
+  }
+  
+  
+  # Bootstrap centered on Backward recurrence time. 
+  # It's more complicated to combine backward and forward for confidence bounds
+  
+  awz.test.boot<-function(trunc,forw,censor,bootk=1000,kmb=FALSE,sig.lev=.05,plotop=list(lwd=rep(1,3),lty=1:3,col=rep("black",3))) {
+    n<-length(trunc)
+    backtime<-fastkm(trunc,rep(1,length(trunc)))
+    forwtime<-fastkm(forw,censor)
+    alltime<-sort(unique(c(trunc,forw)))
+    bign<-length(alltime)
+    bootmat<-matrix(0,nrow=bootk,ncol=bign)
+    plot(c(forwtime$etimes,max(forw)),forwtime$survfunc(c(forwtime$etimes,max(forw))),type="s",ylim=c(0,1),xlim=c(0,max(forw)),main="AWZ test for stationarity",xlab="Time",ylab="Survival",lwd=plotop$lwd[1],lty=plotop$lty[1],col=plotop$col[1])
+    censt<-forw*(1-censor)
+    censt<-censt[censt!=0]
+    if (kmb) {
+      censkm<-fastkm(forw,1-censor)
+      for (i in 1:bootk) {
+        bootforw<-sample(trunc,n,replace=TRUE)
+        bootcens<-sample(censkm$etimes,n,replace=TRUE,prob=censkm$pv)
+        bootf<-pmin(bootforw,bootcens)
+        bootdel<-1*(bootforw<=bootcens)
+        bootkm<-fastkm(bootf,bootdel)
+        bootmat[i,]<-bootkm$survfunc(alltime)
+      }
+    }
+    else {
+      for (i in 1:bootk) {
+        bootforw<-sample(trunc,n,replace=TRUE)
+        bootcens<-sample(censt,n,replace=TRUE)
+        bootf<-pmin(bootforw,bootcens)
+        bootdel<-1*(bootforw<=bootcens)
+        bootkm<-fastkm(bootf,bootdel)
+        bootmat[i,]<-bootkm$survfunc(alltime)
+      }
+    }
+    uplim<-apply(bootmat,2,quantile,1-sig.lev/2)
+    lowlim<-apply(bootmat,2,quantile,sig.lev/2)
+    points(censt,forwtime$survfunc(censt),pch="+",col=plotop$col[1])
+    lines(backtime$etimes,backtime$survfunc(backtime$etimes),type="s",lty=plotop$lty[2],col=plotop$col[2],lwd=plotop$lwd[2])
+    lines(alltime,uplim,type="s",lty=plotop$lty[3],lwd=plotop$lwd[3],col=plotop$col[3])
+    lines(alltime,lowlim,type="s",lty=plotop$lty[3],lwd=plotop$lwd[3],col=plotop$col[3])
+  }
+  
+  
+  
+  ########## Wang test ############################
+  
+  # Estimated truncation distribution
+  ## Watch out for risk set falling to zero in the data set
+  ##### Watch out for ties....
+  ########## Addona and Wolfson formal test ########
+  
+  
+  
+  
+  
+  ###### Second Part
+  
+  
+  weiwnc<-function(truck,forw,cens,offset=0,bootvar=FALSE,bootk=1000) {
+    n<-length(truck)
+    ret<-.C("weiwnr",PACKAGE="lbiassurv",as.double(truck),as.double(forw),as.double(cens),as.integer(n),as.double(offset),wn=as.double(1),s0sq=as.double(1))
+    wn<-ret$wn
+    s0sq<-ret$s0sq
+    if (bootvar) {
+      wnboot<-rep(0,bootk) 
+      for (i in 1:bootk) {
+        swfoo<-sample(0:1,n,replace=T)
+        indres<-sample(n,n,replace=T)
+        trunc1<-swfoo*(truck[indres])+(1-swfoo)*(forw[indres])
+        forw1<-swfoo*(forw[indres])+(1-swfoo)*(truck[indres])
+        cens1<-cens[indres]
+        bootret<-.C("justweiwnr",PACKAGE="lbiassurv",as.double(trunc1),as.double(forw1),as.double(cens1),as.integer(n),as.double(offset),wn=as.double(1))
+        wnboot[i]<-bootret$wn
+      }
+      ret<-list(weistat=sqrt(n)*wn,s0sq=s0sq,boots0sq=n*var(wnboot),bootw0=sqrt(n)*wnboot)
+    }
+    else {
+      ret<-list(weistat=sqrt(n)*wn,s0sq=s0sq)
+    }
+    return(ret)
+  }
+  
+  
+  
+  fastkm<-function(t,d) {
+    if (sum(d)==0) stop("All observations are censored, no estimate possible")
+    else {
+      n<-length(t)
+      ot<-order(t)
+      ts<-t[ot]
+      ds<-d[ot]
+      tt<-unique(ts*ds)
+      tt<-tt[tt!=0]
+      nu<-length(tt)
+      ret<-.C("kaplanmeierr",PACKAGE="lbiassurv",as.double(ts),as.integer(ds),as.integer(n),
+              as.double(tt),as.integer(nu),di=integer(nu),ni=integer(nu),St=double(nu))
+      return(list(etimes=tt,deaths=ret$di,riskset=ret$ni,st=ret$St,pv=-diff(c(1,ret$St)),survfunc=stepfun(tt,c(1,ret$St))))
+      #list(st=ret$St,pv=-diff(c(1,ret$St)))
+    }
+  }
+  
+  #This is the conditional Kaplan-Meier for truncated data
+  #
+  trunckm<-function(ti,te,d) {
+    if (sum(d)==0) stop("All observations are censored, no estimate possible")
+    else {
+      n<-length(ti)
+      ote<-order(te)
+      tes<-te[ote]
+      ds<-d[ote]
+      tt<-unique(tes*ds)
+      tt<-tt[tt!=0]
+      nu<-length(tt)
+      ret<-.C("trunckaplanmeierr",PACKAGE="lbiassurv",as.double(sort(ti)),as.double(tes),as.integer(ds),as.integer(n),
+              as.double(tt),as.integer(nu),di=integer(nu),ni=integer(nu),St=double(nu))
+      return(list(etimes=tt,deaths=ret$di,riskset=ret$ni,st=ret$St,pv=-diff(c(1,ret$St)),survfunc=stepfun(tt,c(1,ret$St))))
+      #list(st=ret$St,pv=-diff(c(1,ret$St)))
+    }
+  }
+  
+  forw=time-entry
+  ### Definition finished
+  if (plot) 
+  {
+    if(bootstrap) 
+    {
+      awz.test.boot(trunc=entry,forw=forw,censor=censor,bootk=boot.control$iter,
+                    kmb=FALSE,sig.lev=1-boot.control$confidence.level,plotop=list(lwd=rep(1,3),lty=1:3,col=rep("black",3))) 
+      ### 1- Revise with plot.control
+      
+    } else 
+    {
+      awz.test(trunc=entry,forw=forw,censor=censor,
+               plotop=list(lwd=rep(1,2),lty=1:2,col=rep("black",2))) 
+      ### 2- Revise with plot.control
+      
+    }
+    
+  }
+  
+  weiwnc.obj<-weiwnc(truck=entry,forw=forw,
+                     cens=censor,offset=offset,bootvar=bootstrap,
+                     bootk=boot.control$iter)
+  if(alternative=="two.sided")
+  {weiwnc.aspvalue=2*pnorm(abs(weiwnc.obj$weistat),mean=0,sd=sqrt(weiwnc.obj$s0sq),lower.tail=FALSE)}
+  if(alternative=="less")
+  {weiwnc.aspvalue=pnorm((weiwnc.obj$weistat),mean=0,sd=sqrt(weiwnc.obj$s0sq),lower.tail=TRUE)}
+  if(alternative=="greater")
+  {weiwnc.aspvalue=pnorm((weiwnc.obj$weistat),mean=0,sd=sqrt(weiwnc.obj$s0sq),lower.tail=FALSE)}
+  
+  if (bootstrap)
+  {
+    if(alternative=="two.sided")
+    {weiwnc.bootpvalue=2*pnorm(abs(weiwnc.obj$weistat),mean=0,sd=sqrt(weiwnc.obj$boots0sq),lower.tail=FALSE)}
+    if(alternative=="less")
+    {weiwnc.bootpvalue=pnorm((weiwnc.obj$weistat),mean=0,sd=sqrt(weiwnc.obj$boots0sq),lower.tail=TRUE)}
+    if(alternative=="greater")
+    {weiwnc.bootpvalue=pnorm((weiwnc.obj$weistat),mean=0,sd=sqrt(weiwnc.obj$boots0sq),lower.tail=FALSE)}
+  }
+  
+  asymptotic.list=list(statistic=weiwnc.obj$weistat,std.err=sqrt(weiwnc.obj$s0sq),
+                       pvalue=weiwnc.aspvalue)
+  bootstrap.list=NULL
+  if (bootstrap)
+  {bootstrap.list=list(std.err=sqrt(weiwnc.obj$boots0sq),
+                       pvalue=weiwnc.bootpvalue)}
+  ret=list(asymptotic=asymptotic.list,bootstrap=bootstrap.list)
+  
+  return(ret)
+}
+
+
 
 lbfit.nonpar<-function(time,censor,boot=FALSE,
                        boot.control=list(quantile=TRUE,use.median=FALSE,confidence.level=0.95,iter=1000),
@@ -160,7 +352,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
       censts
     ot <- order(times)
     return(list(time = times[ot], censor = deathind[ot], 
-                onset = trunctimes[ot]))
+                entry = trunctimes[ot]))
   }
   
   lbs.rllogis<-function(n,shape=1,rate=1,censor.vec=rexp(n)) {
@@ -174,7 +366,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
     residtimevec = lbtimevec - lbtruncvec
     obstimevec = lbtruncvec + pmin(residtimevec, censts)
     deltavec = 1 * (residtimevec < censts)
-    return(list(time = obstimevec, censor = deltavec, onset = lbtruncvec))
+    return(list(time = obstimevec, censor = deltavec, entry = lbtruncvec))
   }
   lbsample.lognormal <- function(size, meanlog = 0, sdlog = 1, 
                                  censts) {
@@ -183,7 +375,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
     residtimevec = lbtimevec - lbtruncvec
     obstimevec = lbtruncvec + pmin(residtimevec, censts)
     deltavec = 1 * (residtimevec < censts)
-    return(list(time = obstimevec, censor = deltavec, onset = lbtruncvec))
+    return(list(time = obstimevec, censor = deltavec, entry = lbtruncvec))
   }
   lbsample.loglogistic <- function(size, shape, rate, censts) {
     alpha <- shape
@@ -201,7 +393,7 @@ lbsample <- function (n, family, par = list(shape, rate, meanlog, sdlog),
     residtimevec = lbtimevec - lbtruncvec
     obstimevec = lbtruncvec + pmin(residtimevec, censts)
     deltavec = 1 * (residtimevec < censts)
-    return(list(time = obstimevec, censor = deltavec, onset = lbtruncvec))
+    return(list(time = obstimevec, censor = deltavec, entry = lbtruncvec))
   }
   if (family == "weibull") {
     return(lbsample.weibull(size, shape, rate, censts))
